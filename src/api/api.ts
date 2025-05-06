@@ -3,12 +3,6 @@ import { Item } from '../types/Item';
 
 const API_URL = 'http://localhost:3000';
 
-interface ItemsResponse {
-    items: Item[];
-    hasMore: boolean;
-    total: number;
-}
-
 // Получение списка элементов
 export const fetchItems = async (
     search: string,

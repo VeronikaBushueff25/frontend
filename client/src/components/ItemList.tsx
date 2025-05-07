@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { Form, Spinner } from 'react-bootstrap';
-import { fetchItems, saveState, loadState } from '../api/api'; // Убедитесь, что API методы реализованы
+import { Form } from 'react-bootstrap';
+import { fetchItems, saveState, loadState } from '../api/api';
 import { Item } from '../types/Item';
 import 'bootstrap/dist/css/bootstrap.min.css';
 

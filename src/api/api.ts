@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { Item } from '../types/Item';
 
-const API_URL = 'http://localhost:3000';
+//const API_URL = 'http://localhost:3000'; // локальный
+
+const API_URL = 'https://backend-production-f6e7.up.railway.app';
 
 // Получение списка элементов
 export const fetchItems = async (

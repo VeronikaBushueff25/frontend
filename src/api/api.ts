@@ -18,54 +18,6 @@ export const fetchItems = async (
     return res.data.items;
 };
 
-// Загрузка ID элементов частями
-export const fetchItemIdsChunk = async (
-    chunk: number = 0,
-    chunkSize: number = 5000
-): Promise<{
-    ids: number[],
-    chunk: number,
-    totalChunks: number,
-    total: number
-}> => {
-    const res = await axios.get(
-        `${API_URL}/items/ids?chunk=${chunk}&size=${chunkSize}`
-    );
-    return res.data;
-};
-
-// Загрузка всех ID элементов по частям
-export const fetchAllItemIds = async (): Promise<number[]> => {
-    let allIds: number[] = [];
-    let chunk = 0;
-    let totalChunks = 1;
-
-    do {
-        const response = await fetchItemIdsChunk(chunk);
-        allIds = [...allIds, ...response.ids];
-        totalChunks = response.totalChunks;
-        chunk++;
-    } while (chunk < totalChunks);
-
-    return allIds;
-};
-
-// Получение части пользовательского порядка
-export const fetchCustomOrderChunk = async (
-    start: number = 0,
-    count: number = 1000,
-    search: string = ''
-): Promise<{
-    orderSlice: number[],
-    start: number,
-    total: number
-}> => {
-    const res = await axios.get(
-        `${API_URL}/items/custom-order?start=${start}&count=${count}&search=${encodeURIComponent(search)}`
-    );
-    return res.data;
-};
-
 // Сохранение только изменения порядка (вместо всего массива)
 export const saveOrderChange = async (
     itemId: number,

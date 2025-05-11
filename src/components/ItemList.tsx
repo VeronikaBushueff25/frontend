@@ -71,10 +71,10 @@ const ItemList: React.FC = () => {
         if (!isInitialized.current) return;
 
         const loadInitialItems = async () => {
-            setItems([]); // Очищаем текущие элементы при изменении поиска
-            setOffset(0); // Сбрасываем офсет
-            setHasMore(true); // Включаем подгрузку
-            await loadMore(true); // Загружаем новые данные
+            setItems([]); /
+            setOffset(0);
+            setHasMore(true);
+            await loadMore(true);
         };
 
         if (!isFirstLoad.current) {

@@ -112,13 +112,17 @@ const ItemList: React.FC = () => {
         try {
             const draggedItemId = parseInt(result.draggableId);
 
-            await saveOrderChange(
-                draggedItemId,
-                result.source.index,
-                result.destination.index,
-                Array.from(selectedIds),
-                search // Передаем текущий поисковый запрос
-            );
+            const fullSearchResults = await fetchItems(search, 0, 5000, false);
+
+            const fullOrder = [...fullSearchResults];
+            const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
+
+            if (draggedIndex !== -1) {
+                const [moved] = fullOrder.splice(draggedIndex, 1);
+                fullOrder.splice(result.destination.index, 0, moved);
+                const customOrder = fullOrder.map(item => item.id);
+                await saveState(Array.from(selectedIds), customOrder, search);
+            }
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
             await loadMore(true);

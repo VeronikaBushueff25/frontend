@@ -53,14 +53,15 @@ export const fetchAllItemIds = async (): Promise<number[]> => {
 // Получение части пользовательского порядка
 export const fetchCustomOrderChunk = async (
     start: number = 0,
-    count: number = 1000
+    count: number = 1000,
+    search: string = ''
 ): Promise<{
     orderSlice: number[],
     start: number,
     total: number
 }> => {
     const res = await axios.get(
-        `${API_URL}/items/custom-order?start=${start}&count=${count}`
+        `${API_URL}/items/custom-order?start=${start}&count=${count}&search=${encodeURIComponent(search)}`
     );
     return res.data;
 };
@@ -70,7 +71,8 @@ export const saveOrderChange = async (
     itemId: number,
     oldIndex: number,
     newIndex: number,
-    selectedIds: number[] = []
+    selectedIds: number[] = [],
+    search: string = ''
 ) => {
     await axios.post(`${API_URL}/items/save-state`, {
         selectedIds,
@@ -78,16 +80,17 @@ export const saveOrderChange = async (
             itemId,
             oldIndex,
             newIndex
-        }
+        },
+        search
     });
 };
 
 // Сохранение состояния (выбранные ID и порядок)
-export const saveState = async (selectedIds: number[], customOrder: number[] = []) => {
+export const saveState = async (selectedIds: number[], customOrder: number[] = [], search: string = '') => {
     if (customOrder.length > 5000) {
-        await axios.post(`${API_URL}/items/save-state`, { selectedIds });
+        await axios.post(`${API_URL}/items/save-state`, { selectedIds, search });
     } else {
-        await axios.post(`${API_URL}/items/save-state`, { selectedIds, customOrder });
+        await axios.post(`${API_URL}/items/save-state`, { selectedIds, customOrder, search });
     }
 };
 

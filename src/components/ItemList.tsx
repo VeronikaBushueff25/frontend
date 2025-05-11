@@ -116,7 +116,8 @@ const ItemList: React.FC = () => {
                 draggedItemId,
                 result.source.index,
                 result.destination.index,
-                Array.from(selectedIds)
+                Array.from(selectedIds),
+                search // Передаем текущий поисковый запрос
             );
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
@@ -151,7 +152,7 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            await saveState(Array.from(updated));
+            await saveState(Array.from(updated), [], search); // Передаем поисковый запрос
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }

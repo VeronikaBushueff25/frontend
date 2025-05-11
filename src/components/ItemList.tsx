@@ -106,8 +106,9 @@ const ItemList: React.FC = () => {
     const onDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
+        // Полностью блокируем функциональность перетаскивания при поиске
         if (search) {
-            alert('Перетаскивание отключено при активном поиске');
+            console.log('Перетаскивание отключено при активном поиске');
             return;
         }
 
@@ -116,7 +117,8 @@ const ItemList: React.FC = () => {
 
         try {
             const draggedItemId = parseInt(result.draggableId);
-            const fullSearchResults = await fetchItems(search, 0, 5000, false);
+            // Уменьшаем количество запрашиваемых элементов для оптимизации
+            const fullSearchResults = await fetchItems('', 0, 5000, false);
             const fullOrder = [...fullSearchResults];
             const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
 
@@ -126,7 +128,7 @@ const ItemList: React.FC = () => {
 
                 const customOrder = fullOrder.map(item => item.id);
 
-                await saveState(Array.from(selectedIds), customOrder, search);
+                await saveState(Array.from(selectedIds), customOrder, '');
             }
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
@@ -161,7 +163,8 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            await saveState(Array.from(updated), [], search); // Передаем поисковый запрос
+            // При активном поиске не передаем строку поиска для сохранения порядка
+            await saveState(Array.from(updated), [], '');
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }
@@ -178,15 +181,15 @@ const ItemList: React.FC = () => {
                     className="border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {search && (
-                    <div className="text-muted mb-3">
+                    <div className="text-danger mb-3 fw-bold">
                         🔒 Перетаскивание отключено при активном поиске
                     </div>
                 )}
             </Form.Group>
 
             {items.length > 0 ? (
-                <DragDropContext onDragEnd={search ? () => {} : onDragEnd}>
-                    <Droppable droppableId={`droppable-list-${items.length}`}>
+                <DragDropContext onDragEnd={onDragEnd}>
+                    <Droppable droppableId={`droppable-list-${items.length}`} isDropDisabled={!!search}>
                         {(provided) => (
                             <ul {...provided.droppableProps} ref={provided.innerRef} className="list-unstyled">
                                 {items.map((item, index) => (

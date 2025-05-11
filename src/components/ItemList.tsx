@@ -18,6 +18,38 @@ const ItemList: React.FC = () => {
     const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
 
+    // Загрузка следующей порции элементов
+    const loadMore = useCallback(async (resetOffset = false) => {
+        setLoading(true);
+        const currentOffset = resetOffset ? 0 : offset;
+
+        try {
+            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
+
+            if (resetOffset) {
+                setItems(newItems);
+                setOffset(LIMIT); // Обновляем офсет
+            } else {
+                setItems(prev => {
+                    const existingIds = new Set(prev.map(item => item.id));
+                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                    return [...prev, ...uniqueNewItems];
+                });
+                setOffset(prev => prev + LIMIT);
+            }
+
+            if (newItems.length < LIMIT) {
+                setHasMore(false); // Если новых элементов меньше LIMIT, прекращаем подгрузку
+            } else {
+                setHasMore(true);
+            }
+        } catch (err) {
+            console.error('Ошибка загрузки данных', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [search, offset]);
+
     // Загрузка состояния с сервера и начальных данных
     useEffect(() => {
         const initializeData = async () => {
@@ -25,7 +57,7 @@ const ItemList: React.FC = () => {
                 const state = await loadState();
                 setSelectedIds(new Set(state.selectedIds || []));
                 isInitialized.current = true;
-                await loadMore(true);
+                await loadMore(true); // Запускаем загрузку данных при инициализации
             } catch (err) {
                 console.error('Ошибка инициализации данных', err);
             }
@@ -39,10 +71,10 @@ const ItemList: React.FC = () => {
         if (!isInitialized.current) return;
 
         const loadInitialItems = async () => {
-            setItems([]);
-            setOffset(0);
-            setHasMore(true);
-            await loadMore(true);
+            setItems([]); // Очищаем текущие элементы при изменении поиска
+            setOffset(0); // Сбрасываем офсет
+            setHasMore(true); // Включаем подгрузку
+            await loadMore(true); // Загружаем новые данные
         };
 
         if (!isFirstLoad.current) {
@@ -51,38 +83,6 @@ const ItemList: React.FC = () => {
             isFirstLoad.current = false;
         }
     }, [search, loadMore]);
-
-    // Загрузка следующей порции элементов
-    const loadMore = useCallback(async (resetOffset = false) => {
-        setLoading(true);
-        const currentOffset = resetOffset ? 0 : offset;
-
-        try {
-            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
-
-            if (resetOffset) {
-                setItems(newItems);
-                setOffset(LIMIT);
-            } else {
-                setItems(prev => {
-                    const existingIds = new Set(prev.map(item => item.id));
-                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
-                    return [...prev, ...uniqueNewItems];
-                });
-                setOffset(prev => prev + LIMIT);
-            }
-
-            if (newItems.length < LIMIT) {
-                setHasMore(false);
-            } else {
-                setHasMore(true);
-            }
-        } catch (err) {
-            console.error('Ошибка загрузки данных', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [search, offset]);
 
     // Наблюдатель для скролла
     useEffect(() => {

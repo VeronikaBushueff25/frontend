@@ -106,26 +106,40 @@ const ItemList: React.FC = () => {
     const onDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
-        const reorderedItems = reorder(items, result.source.index, result.destination.index);
-        setItems(reorderedItems);
+        const visibleIds = items.map(item => item.id);
+        const reorderedVisibleIds = reorderNumbers(visibleIds, result.source.index, result.destination.index);
+
+        const state = await loadState();
+        const globalOrder = state.customOrder || [];
+
+        const firstVisibleId = visibleIds[0];
+        const lastVisibleId = visibleIds[visibleIds.length - 1];
+        const startIndex = globalOrder.indexOf(firstVisibleId);
+        const endIndex = globalOrder.indexOf(lastVisibleId);
+
+        const newCustomOrder = [
+            ...globalOrder.slice(0, startIndex),
+            ...reorderedVisibleIds,
+            ...globalOrder.slice(endIndex + 1),
+        ];
 
         try {
-            const draggedItemId = parseInt(result.draggableId);
-
-            await saveOrderChange(
-                draggedItemId,
-                result.source.index,
-                result.destination.index,
-                Array.from(selectedIds)
-            );
+            await saveState(Array.from(selectedIds), newCustomOrder);
+            setItems(await fetchItems(search, 0, offset + LIMIT, true));
         } catch (err) {
-            console.error('Ошибка сохранения нового порядка', err);
-            await loadMore(true);
+            console.error('Ошибка сохранения порядка', err);
         }
     };
 
     // Сортировка
     const reorder = (list: Item[], startIndex: number, endIndex: number): Item[] => {
+        const result = Array.from(list);
+        const [removed] = result.splice(startIndex, 1);
+        result.splice(endIndex, 0, removed);
+        return result;
+    };
+
+    const reorderNumbers = (list: number[], startIndex: number, endIndex: number): number[] => {
         const result = Array.from(list);
         const [removed] = result.splice(startIndex, 1);
         result.splice(endIndex, 0, removed);

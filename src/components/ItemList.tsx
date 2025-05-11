@@ -106,6 +106,11 @@ const ItemList: React.FC = () => {
     const onDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
+        if (search) {
+            alert('Перемещение отключено при активном поиске');
+            return;
+        }
+
         const reorderedItems = reorder(items, result.source.index, result.destination.index);
         setItems(reorderedItems);
 

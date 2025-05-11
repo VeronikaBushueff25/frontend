@@ -57,21 +57,21 @@ const ItemList: React.FC = () => {
                 const state = await loadState();
                 setSelectedIds(new Set(state.selectedIds || []));
                 isInitialized.current = true;
-                await loadMore(true); // Запускаем загрузку данных при инициализации
+                await loadMore(true); 
             } catch (err) {
                 console.error('Ошибка инициализации данных', err);
             }
         };
 
         initializeData();
-    }, []);
+    }, [loadMore]);
 
     // Загрузка элементов при изменении поиска
     useEffect(() => {
         if (!isInitialized.current) return;
 
         const loadInitialItems = async () => {
-            setItems([]); /
+            setItems([]);
             setOffset(0);
             setHasMore(true);
             await loadMore(true);

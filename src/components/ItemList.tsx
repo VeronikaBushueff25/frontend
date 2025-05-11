@@ -15,7 +15,7 @@ const ItemList: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const loaderRef = useRef<HTMLDivElement | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [visibleItemIds, setVisibleItemIds] = useState<number[]>([]); // Только для видимых элементов
+    const [setVisibleItemIds] = useState<number[]>([]); // Только для видимых элементов
     const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
 
@@ -64,7 +64,6 @@ const ItemList: React.FC = () => {
 
             if (resetOffset) {
                 setItems(newItems);
-                setVisibleItemIds(newItemIds);
                 setOffset(LIMIT);
             } else {
                 setItems(prev => {
@@ -72,7 +71,6 @@ const ItemList: React.FC = () => {
                     const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
                     return [...prev, ...uniqueNewItems];
                 });
-                setVisibleItemIds(prevIds => [...prevIds, ...newItemIds]);
                 setOffset(prev => prev + LIMIT);
             }
 
@@ -124,7 +122,6 @@ const ItemList: React.FC = () => {
             );
 
             const newVisibleIds = reorderedItems.map(item => item.id);
-            setVisibleItemIds(newVisibleIds);
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
             await loadMore(true);
@@ -143,7 +140,6 @@ const ItemList: React.FC = () => {
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
         setItems([]);
-        setVisibleItemIds([]);
         setOffset(0);
         setHasMore(true);
     };

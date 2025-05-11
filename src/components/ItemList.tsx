@@ -18,38 +18,6 @@ const ItemList: React.FC = () => {
     const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
 
-    // Загрузка следующей порции элементов
-    const loadMore = useCallback(async (resetOffset = false) => {
-        setLoading(true);
-        const currentOffset = resetOffset ? 0 : offset;
-
-        try {
-            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
-
-            if (resetOffset) {
-                setItems(newItems);
-                setOffset(LIMIT); // Обновляем офсет
-            } else {
-                setItems(prev => {
-                    const existingIds = new Set(prev.map(item => item.id));
-                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
-                    return [...prev, ...uniqueNewItems];
-                });
-                setOffset(prev => prev + LIMIT);
-            }
-
-            if (newItems.length < LIMIT) {
-                setHasMore(false); // Если новых элементов меньше LIMIT, прекращаем подгрузку
-            } else {
-                setHasMore(true);
-            }
-        } catch (err) {
-            console.error('Ошибка загрузки данных', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [search, offset]);
-
     // Загрузка состояния с сервера и начальных данных
     useEffect(() => {
         const initializeData = async () => {
@@ -57,14 +25,14 @@ const ItemList: React.FC = () => {
                 const state = await loadState();
                 setSelectedIds(new Set(state.selectedIds || []));
                 isInitialized.current = true;
-                await loadMore(true); 
+                await loadMore(true);
             } catch (err) {
                 console.error('Ошибка инициализации данных', err);
             }
         };
 
         initializeData();
-    }, [loadMore]);
+    }, []);
 
     // Загрузка элементов при изменении поиска
     useEffect(() => {
@@ -82,7 +50,39 @@ const ItemList: React.FC = () => {
         } else {
             isFirstLoad.current = false;
         }
-    }, [search, loadMore]);
+    }, [search]);
+
+    // Загрузка следующей порции элементов
+    const loadMore = useCallback(async (resetOffset = false) => {
+        setLoading(true);
+        const currentOffset = resetOffset ? 0 : offset;
+
+        try {
+            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
+
+            if (resetOffset) {
+                setItems(newItems);
+                setOffset(LIMIT);
+            } else {
+                setItems(prev => {
+                    const existingIds = new Set(prev.map(item => item.id));
+                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                    return [...prev, ...uniqueNewItems];
+                });
+                setOffset(prev => prev + LIMIT);
+            }
+
+            if (newItems.length < LIMIT) {
+                setHasMore(false);
+            } else {
+                setHasMore(true);
+            }
+        } catch (err) {
+            console.error('Ошибка загрузки данных', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [search, offset]);
 
     // Наблюдатель для скролла
     useEffect(() => {
@@ -106,40 +106,26 @@ const ItemList: React.FC = () => {
     const onDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
-        const visibleIds = items.map(item => item.id);
-        const reorderedVisibleIds = reorderNumbers(visibleIds, result.source.index, result.destination.index);
-
-        const state = await loadState();
-        const globalOrder = state.customOrder || [];
-
-        const firstVisibleId = visibleIds[0];
-        const lastVisibleId = visibleIds[visibleIds.length - 1];
-        const startIndex = globalOrder.indexOf(firstVisibleId);
-        const endIndex = globalOrder.indexOf(lastVisibleId);
-
-        const newCustomOrder = [
-            ...globalOrder.slice(0, startIndex),
-            ...reorderedVisibleIds,
-            ...globalOrder.slice(endIndex + 1),
-        ];
+        const reorderedItems = reorder(items, result.source.index, result.destination.index);
+        setItems(reorderedItems);
 
         try {
-            await saveState(Array.from(selectedIds), newCustomOrder);
-            setItems(await fetchItems(search, 0, offset + LIMIT, true));
+            const draggedItemId = parseInt(result.draggableId);
+
+            await saveOrderChange(
+                draggedItemId,
+                result.source.index,
+                result.destination.index,
+                Array.from(selectedIds)
+            );
         } catch (err) {
-            console.error('Ошибка сохранения порядка', err);
+            console.error('Ошибка сохранения нового порядка', err);
+            await loadMore(true);
         }
     };
 
     // Сортировка
     const reorder = (list: Item[], startIndex: number, endIndex: number): Item[] => {
-        const result = Array.from(list);
-        const [removed] = result.splice(startIndex, 1);
-        result.splice(endIndex, 0, removed);
-        return result;
-    };
-
-    const reorderNumbers = (list: number[], startIndex: number, endIndex: number): number[] => {
         const result = Array.from(list);
         const [removed] = result.splice(startIndex, 1);
         result.splice(endIndex, 0, removed);

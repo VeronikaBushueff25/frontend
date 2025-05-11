@@ -50,7 +50,7 @@ const ItemList: React.FC = () => {
         } else {
             isFirstLoad.current = false;
         }
-    }, [search]);
+    }, [search, loadMore]);
 
     // Загрузка следующей порции элементов
     const loadMore = useCallback(async (resetOffset = false) => {

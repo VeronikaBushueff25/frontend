@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { Form } from 'react-bootstrap';
-import { fetchItems, saveState, loadState} from '../api/api';
+import {fetchItems, saveState, loadState} from '../api/api';
 import { Item } from '../types/Item';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -107,7 +107,7 @@ const ItemList: React.FC = () => {
         if (!result.destination) return;
 
         if (search) {
-            alert('Перемещение отключено при активном поиске');
+            alert('Перетаскивание отключено при активном поиске');
             return;
         }
 
@@ -116,16 +116,16 @@ const ItemList: React.FC = () => {
 
         try {
             const draggedItemId = parseInt(result.draggableId);
-
             const fullSearchResults = await fetchItems(search, 0, 5000, false);
-
             const fullOrder = [...fullSearchResults];
             const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
 
             if (draggedIndex !== -1) {
                 const [moved] = fullOrder.splice(draggedIndex, 1);
                 fullOrder.splice(result.destination.index, 0, moved);
+
                 const customOrder = fullOrder.map(item => item.id);
+
                 await saveState(Array.from(selectedIds), customOrder, search);
             }
         } catch (err) {
@@ -161,7 +161,7 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            await saveState(Array.from(updated), [], search); 
+            await saveState(Array.from(updated), [], search); // Передаем поисковый запрос
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }

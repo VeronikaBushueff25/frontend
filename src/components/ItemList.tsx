@@ -18,42 +18,6 @@ const ItemList: React.FC = () => {
     const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
 
-    // Загрузка состояния с сервера и начальных данных
-    useEffect(() => {
-        const initializeData = async () => {
-            try {
-                const state = await loadState();
-                setSelectedIds(new Set(state.selectedIds || []));
-                isInitialized.current = true;
-                await loadMore(true);
-            } catch (err) {
-                console.error('Ошибка инициализации данных', err);
-            }
-        };
-
-        initializeData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Загрузка элементов при изменении поиска
-    useEffect(() => {
-        if (!isInitialized.current) return;
-
-        const loadInitialItems = async () => {
-            setItems([]);
-            setOffset(0);
-            setHasMore(true);
-            await loadMore(true);
-        };
-
-        if (!isFirstLoad.current) {
-            loadInitialItems();
-        } else {
-            isFirstLoad.current = false;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search]);
-
     // Загрузка следующей порции элементов
     const loadMore = useCallback(async (resetOffset = false) => {
         setLoading(true);
@@ -85,6 +49,40 @@ const ItemList: React.FC = () => {
             setLoading(false);
         }
     }, [search, offset]);
+
+    // Загрузка состояния с сервера и начальных данных
+    useEffect(() => {
+        const initializeData = async () => {
+            try {
+                const state = await loadState();
+                setSelectedIds(new Set(state.selectedIds || []));
+                isInitialized.current = true;
+                await loadMore(true);
+            } catch (err) {
+                console.error('Ошибка инициализации данных', err);
+            }
+        };
+
+        initializeData();
+    }, [loadMore]);
+
+    // Загрузка элементов при изменении поиска
+    useEffect(() => {
+        if (!isInitialized.current) return;
+
+        const loadInitialItems = async () => {
+            setItems([]);
+            setOffset(0);
+            setHasMore(true);
+            await loadMore(true);
+        };
+
+        if (!isFirstLoad.current) {
+            loadInitialItems();
+        } else {
+            isFirstLoad.current = false;
+        }
+    }, [search, loadMore]);
 
     // Наблюдатель для скролла
     useEffect(() => {

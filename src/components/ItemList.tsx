@@ -177,10 +177,15 @@ const ItemList: React.FC = () => {
                     onChange={handleSearch}
                     className="border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                {search && (
+                    <div className="text-muted mb-3">
+                        🔒 Перетаскивание отключено при активном поиске
+                    </div>
+                )}
             </Form.Group>
 
             {items.length > 0 ? (
-                <DragDropContext onDragEnd={onDragEnd}>
+                <DragDropContext onDragEnd={search ? () => {} : onDragEnd}>
                     <Droppable droppableId={`droppable-list-${items.length}`}>
                         {(provided) => (
                             <ul {...provided.droppableProps} ref={provided.innerRef} className="list-unstyled">

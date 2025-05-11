@@ -104,20 +104,18 @@ const ItemList: React.FC = () => {
 
     // Обработчик DnD
     const onDragEnd = async (result: DropResult) => {
-        if (!result.destination) return;
-
-        // Полностью блокируем функциональность перетаскивания при поиске
+        // Если активен поиск, полностью игнорируем событие перетаскивания
         if (search) {
-            console.log('Перетаскивание отключено при активном поиске');
             return;
         }
+
+        if (!result.destination) return;
 
         const reorderedItems = reorder(items, result.source.index, result.destination.index);
         setItems(reorderedItems);
 
         try {
             const draggedItemId = parseInt(result.draggableId);
-            // Уменьшаем количество запрашиваемых элементов для оптимизации
             const fullSearchResults = await fetchItems('', 0, 5000, false);
             const fullOrder = [...fullSearchResults];
             const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
@@ -163,11 +161,74 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            // При активном поиске не передаем строку поиска для сохранения порядка
+            // Не передаем поисковый запрос при сохранении выбранных элементов
             await saveState(Array.from(updated), [], '');
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }
+    };
+
+    // Отображение списка элементов с перетаскиванием или без
+    const renderItemList = () => {
+        // Если активен поиск, отображаем обычный список без возможности перетаскивания
+        if (search) {
+            return (
+                <ul className="list-unstyled">
+                    {items.map((item) => (
+                        <li
+                            key={item.id.toString()}
+                            className="d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition"
+                        >
+                            <Form.Check
+                                type="checkbox"
+                                checked={selectedIds.has(item.id)}
+                                onChange={() => toggleSelect(item.id)}
+                                className="me-2"
+                            />
+                            <span className="text-dark">{item.value}</span>
+                        </li>
+                    ))}
+                </ul>
+            );
+        }
+
+        // Если поиск не активен, используем DragDropContext
+        return (
+            <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId={`droppable-list-${items.length}`}>
+                    {(provided) => (
+                        <ul {...provided.droppableProps} ref={provided.innerRef} className="list-unstyled">
+                            {items.map((item, index) => (
+                                <Draggable
+                                    key={item.id.toString()}
+                                    draggableId={item.id.toString()}
+                                    index={index}
+                                >
+                                    {(provided, snapshot) => (
+                                        <li
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            {...provided.dragHandleProps}
+                                            className={`d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition
+                                            ${snapshot.isDragging ? 'bg-info bg-opacity-25 shadow-lg' : ''}`}
+                                        >
+                                            <Form.Check
+                                                type="checkbox"
+                                                checked={selectedIds.has(item.id)}
+                                                onChange={() => toggleSelect(item.id)}
+                                                className="me-2"
+                                            />
+                                            <span className="text-dark">{item.value}</span>
+                                        </li>
+                                    )}
+                                </Draggable>
+                            ))}
+                            {provided.placeholder}
+                        </ul>
+                    )}
+                </Droppable>
+            </DragDropContext>
+        );
     };
 
     return (
@@ -188,41 +249,7 @@ const ItemList: React.FC = () => {
             </Form.Group>
 
             {items.length > 0 ? (
-                <DragDropContext onDragEnd={onDragEnd}>
-                    <Droppable droppableId={`droppable-list-${items.length}`} isDropDisabled={!!search}>
-                        {(provided) => (
-                            <ul {...provided.droppableProps} ref={provided.innerRef} className="list-unstyled">
-                                {items.map((item, index) => (
-                                    <Draggable
-                                        key={item.id.toString()}
-                                        draggableId={item.id.toString()}
-                                        index={index}
-                                        isDragDisabled={!!search}
-                                    >
-                                        {(provided, snapshot) => (
-                                            <li
-                                                ref={provided.innerRef}
-                                                {...provided.draggableProps}
-                                                {...provided.dragHandleProps}
-                                                className={`d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition
-                                                ${snapshot.isDragging ? 'bg-info bg-opacity-25 shadow-lg' : ''}`}
-                                            >
-                                                <Form.Check
-                                                    type="checkbox"
-                                                    checked={selectedIds.has(item.id)}
-                                                    onChange={() => toggleSelect(item.id)}
-                                                    className="me-2"
-                                                />
-                                                <span className="text-dark">{item.value}</span>
-                                            </li>
-                                        )}
-                                    </Draggable>
-                                ))}
-                                {provided.placeholder}
-                            </ul>
-                        )}
-                    </Droppable>
-                </DragDropContext>
+                renderItemList()
             ) : loading ? (
                 <div className="text-center py-4">Загрузка...</div>
             ) : (

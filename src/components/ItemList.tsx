@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { Form } from 'react-bootstrap';
-import { fetchItems, saveState, loadState } from '../api/api';
+import { fetchItems, fetchItemIdsChunk, saveState, loadState, saveOrderChange } from '../api/api';
 import { Item } from '../types/Item';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const LIMIT = 20;
+const CHUNK_SIZE = 5000;
 
 const ItemList: React.FC = () => {
     const [items, setItems] = useState<Item[]>([]);
@@ -15,34 +16,78 @@ const ItemList: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const loaderRef = useRef<HTMLDivElement | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [customOrder, setCustomOrder] = useState<number[]>([]);
+    const [visibleItemIds, setVisibleItemIds] = useState<number[]>([]); // Только для видимых элементов
+    const isFirstLoad = useRef(true);
+    const isInitialized = useRef(false);
 
-    // Загрузка состояния с сервера
+    // Загрузка состояния с сервера и начальных данных
     useEffect(() => {
-        const restoreState = async () => {
-            const state = await loadState();
-            setSelectedIds(new Set(state.selectedIds || []));
-            setCustomOrder(state.customOrder || []);
+        const initializeData = async () => {
+            try {
+                const state = await loadState();
+                setSelectedIds(new Set(state.selectedIds || []));
+                isInitialized.current = true;
+                await loadMore(true);
+            } catch (err) {
+                console.error('Ошибка инициализации данных', err);
+            }
         };
-        restoreState();
+
+        initializeData();
     }, []);
 
+    // Загрузка элементов при изменении поиска
+    useEffect(() => {
+        if (!isInitialized.current) return;
+
+        const loadInitialItems = async () => {
+            setItems([]);
+            setOffset(0);
+            setHasMore(true);
+            await loadMore(true);
+        };
+
+        if (!isFirstLoad.current) {
+            loadInitialItems();
+        } else {
+            isFirstLoad.current = false;
+        }
+    }, [search]);
+
     // Загрузка следующей порции элементов
-    const loadMore = useCallback(async () => {
+    const loadMore = useCallback(async (resetOffset = false) => {
         setLoading(true);
+        const currentOffset = resetOffset ? 0 : offset;
+
         try {
-            const newItems = await fetchItems(search, offset, LIMIT, customOrder);
-            setItems(prev => [...prev, ...newItems]);
-            setOffset(prev => prev + LIMIT);
+            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
+            const newItemIds = newItems.map(item => item.id);
+
+            if (resetOffset) {
+                setItems(newItems);
+                setVisibleItemIds(newItemIds);
+                setOffset(LIMIT);
+            } else {
+                setItems(prev => {
+                    const existingIds = new Set(prev.map(item => item.id));
+                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                    return [...prev, ...uniqueNewItems];
+                });
+                setVisibleItemIds(prevIds => [...prevIds, ...newItemIds]);
+                setOffset(prev => prev + LIMIT);
+            }
+
             if (newItems.length < LIMIT) {
                 setHasMore(false);
+            } else {
+                setHasMore(true);
             }
         } catch (err) {
             console.error('Ошибка загрузки данных', err);
         } finally {
             setLoading(false);
         }
-    }, [search, offset, customOrder]);
+    }, [search, offset]);
 
     // Наблюдатель для скролла
     useEffect(() => {
@@ -63,15 +108,28 @@ const ItemList: React.FC = () => {
     }, [loadMore, loading, hasMore]);
 
     // Обработчик DnD
-    const onDragEnd = (result: DropResult) => {
+    const onDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
         const reorderedItems = reorder(items, result.source.index, result.destination.index);
         setItems(reorderedItems);
 
-        const newOrder = reorderedItems.map(i => i.id);
-        saveState(Array.from(selectedIds), newOrder);
-        setCustomOrder(newOrder);
+        try {
+            const draggedItemId = parseInt(result.draggableId);
+
+            await saveOrderChange(
+                draggedItemId,
+                result.source.index,
+                result.destination.index,
+                Array.from(selectedIds)
+            );
+
+            const newVisibleIds = reorderedItems.map(item => item.id);
+            setVisibleItemIds(newVisibleIds);
+        } catch (err) {
+            console.error('Ошибка сохранения нового порядка', err);
+            await loadMore(true);
+        }
     };
 
     // Сортировка
@@ -86,12 +144,13 @@ const ItemList: React.FC = () => {
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
         setItems([]);
+        setVisibleItemIds([]);
         setOffset(0);
         setHasMore(true);
     };
 
     // Выбор
-    const toggleSelect = (id: number) => {
+    const toggleSelect = async (id: number) => {
         const updated = new Set(selectedIds);
         if (updated.has(id)) {
             updated.delete(id);
@@ -99,7 +158,12 @@ const ItemList: React.FC = () => {
             updated.add(id);
         }
         setSelectedIds(updated);
-        saveState(Array.from(updated), items.map(i => i.id));
+
+        try {
+            await saveState(Array.from(updated));
+        } catch (err) {
+            console.error('Ошибка сохранения выбранных элементов', err);
+        }
     };
 
     return (
@@ -149,8 +213,10 @@ const ItemList: React.FC = () => {
                         )}
                     </Droppable>
                 </DragDropContext>
-            ) : (
+            ) : loading ? (
                 <div className="text-center py-4">Загрузка...</div>
+            ) : (
+                <div className="text-center py-4">Нет элементов</div>
             )}
             <div ref={loaderRef} />
         </div>

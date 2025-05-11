@@ -32,6 +32,7 @@ const ItemList: React.FC = () => {
         };
 
         initializeData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Загрузка элементов при изменении поиска
@@ -50,6 +51,7 @@ const ItemList: React.FC = () => {
         } else {
             isFirstLoad.current = false;
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
     // Загрузка следующей порции элементов

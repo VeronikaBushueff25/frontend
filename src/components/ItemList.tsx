@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { Form } from 'react-bootstrap';
-import { fetchItems, fetchItemIdsChunk, saveState, loadState, saveOrderChange } from '../api/api';
+import { fetchItems, saveState, loadState, saveOrderChange } from '../api/api';
 import { Item } from '../types/Item';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const LIMIT = 20;
-const CHUNK_SIZE = 5000;
 
 const ItemList: React.FC = () => {
     const [items, setItems] = useState<Item[]>([]);

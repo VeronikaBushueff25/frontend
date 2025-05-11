@@ -15,7 +15,6 @@ const ItemList: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const loaderRef = useRef<HTMLDivElement | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [setVisibleItemIds] = useState<number[]>([]); // Только для видимых элементов
     const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
 
@@ -60,7 +59,6 @@ const ItemList: React.FC = () => {
 
         try {
             const newItems = await fetchItems(search, currentOffset, LIMIT, true);
-            const newItemIds = newItems.map(item => item.id);
 
             if (resetOffset) {
                 setItems(newItems);
@@ -120,8 +118,6 @@ const ItemList: React.FC = () => {
                 result.destination.index,
                 Array.from(selectedIds)
             );
-
-            const newVisibleIds = reorderedItems.map(item => item.id);
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
             await loadMore(true);

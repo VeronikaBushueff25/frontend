@@ -161,7 +161,7 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            await saveState(Array.from(updated), [], search); // Передаем поисковый запрос
+            await saveState(Array.from(updated), [], search); 
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }
@@ -189,6 +189,7 @@ const ItemList: React.FC = () => {
                                         key={item.id.toString()}
                                         draggableId={item.id.toString()}
                                         index={index}
+                                        isDragDisabled={!!search}
                                     >
                                         {(provided, snapshot) => (
                                             <li

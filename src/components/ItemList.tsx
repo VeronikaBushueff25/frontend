@@ -15,9 +15,8 @@ const ItemList: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const loaderRef = useRef<HTMLDivElement | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [visibleItemIds, setVisibleItemIds] = useState<number[]>([]); // Только для видимых элементов
-    const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
+    const canLoadMore = useRef(true);
 
     // Загрузка состояния с сервера и начальных данных
     useEffect(() => {
@@ -26,7 +25,7 @@ const ItemList: React.FC = () => {
                 const state = await loadState();
                 setSelectedIds(new Set(state.selectedIds || []));
                 isInitialized.current = true;
-                await loadMore(true);
+                await loadInitialItems();
             } catch (err) {
                 console.error('Ошибка инициализации данных', err);
             }
@@ -35,76 +34,100 @@ const ItemList: React.FC = () => {
         initializeData();
     }, []);
 
-    // Загрузка элементов при изменении поиска
-    useEffect(() => {
-        if (!isInitialized.current) return;
+    // Загрузка первоначальных элементов или при смене поиска
+    const loadInitialItems = useCallback(async () => {
+        // Сбрасываем состояние
+        setItems([]);
+        setOffset(0);
+        setHasMore(true);
+        canLoadMore.current = true;
 
-        const loadInitialItems = async () => {
-            setItems([]);
-            setOffset(0);
-            setHasMore(true);
-            await loadMore(true);
-        };
-
-        if (!isFirstLoad.current) {
-            loadInitialItems();
-        } else {
-            isFirstLoad.current = false;
-        }
-    }, [search]);
-
-    // Загрузка следующей порции элементов
-    const loadMore = useCallback(async (resetOffset = false) => {
-        setLoading(true);
-        const currentOffset = resetOffset ? 0 : offset;
-
+        // Первая загрузка
         try {
-            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
-            const newItemIds = newItems.map(item => item.id);
+            setLoading(true);
+            const newItems = await fetchItems(search, 0, LIMIT, true);
 
-            if (resetOffset) {
-                setItems(newItems);
-                setVisibleItemIds(newItemIds);
-                setOffset(LIMIT);
-            } else {
-                setItems(prev => {
-                    const existingIds = new Set(prev.map(item => item.id));
-                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
-                    return [...prev, ...uniqueNewItems];
-                });
-                setVisibleItemIds(prevIds => [...prevIds, ...newItemIds]);
-                setOffset(prev => prev + LIMIT);
-            }
+            setItems(newItems);
 
+            // Обновляем состояние загрузки
             if (newItems.length < LIMIT) {
                 setHasMore(false);
+                canLoadMore.current = false;
             } else {
-                setHasMore(true);
+                setOffset(LIMIT);
             }
         } catch (err) {
-            console.error('Ошибка загрузки данных', err);
+            console.error('Ошибка загрузки первоначальных данных', err);
+            setHasMore(false);
+            canLoadMore.current = false;
         } finally {
             setLoading(false);
         }
-    }, [search, offset]);
+    }, [search]);
+
+    // Загрузка дополнительных элементов
+    const loadMoreItems = useCallback(async () => {
+        // Проверяем возможность загрузки
+        if (!canLoadMore.current || loading || !hasMore) return;
+
+        try {
+            setLoading(true);
+            const newItems = await fetchItems(search, offset, LIMIT, true);
+
+            // Обновляем список элементов
+            setItems(prevItems => {
+                const existingIds = new Set(prevItems.map(item => item.id));
+                const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                return [...prevItems, ...uniqueNewItems];
+            });
+
+            // Обновляем состояние загрузки
+            if (newItems.length < LIMIT) {
+                setHasMore(false);
+                canLoadMore.current = false;
+            } else {
+                setOffset(prevOffset => prevOffset + LIMIT);
+            }
+        } catch (err) {
+            console.error('Ошибка загрузки дополнительных данных', err);
+            setHasMore(false);
+            canLoadMore.current = false;
+        } finally {
+            setLoading(false);
+        }
+    }, [search, offset, loading, hasMore]);
 
     // Наблюдатель для скролла
     useEffect(() => {
-        if (loading || !hasMore) return;
+        if (!loaderRef.current) return;
 
-        const observer = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting) {
-                loadMore();
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const first = entries[0];
+                if (first.isIntersecting && hasMore && !loading) {
+                    loadMoreItems();
+                }
+            },
+            {
+                threshold: 0.1,
+                rootMargin: '50px'
             }
-        });
+        );
 
-        const current = loaderRef.current;
-        if (current) observer.observe(current);
+        const currentLoader = loaderRef.current;
+        if (currentLoader) observer.observe(currentLoader);
 
         return () => {
-            if (current) observer.unobserve(current);
+            if (currentLoader) observer.unobserve(currentLoader);
         };
-    }, [loadMore, loading, hasMore]);
+    }, [loadMoreItems, hasMore, loading]);
+
+    // Обработчик поиска
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const searchValue = e.target.value;
+        setSearch(searchValue);
+        loadInitialItems();
+    };
 
     // Обработчик DnD
     const onDragEnd = async (result: DropResult) => {
@@ -122,12 +145,9 @@ const ItemList: React.FC = () => {
                 result.destination.index,
                 Array.from(selectedIds)
             );
-
-            const newVisibleIds = reorderedItems.map(item => item.id);
-            setVisibleItemIds(newVisibleIds);
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
-            await loadMore(true);
+            await loadInitialItems();
         }
     };
 
@@ -137,15 +157,6 @@ const ItemList: React.FC = () => {
         const [removed] = result.splice(startIndex, 1);
         result.splice(endIndex, 0, removed);
         return result;
-    };
-
-    // Обработчик поиска
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearch(e.target.value);
-        setItems([]);
-        setVisibleItemIds([]);
-        setOffset(0);
-        setHasMore(true);
     };
 
     // Выбор
@@ -212,12 +223,22 @@ const ItemList: React.FC = () => {
                         )}
                     </Droppable>
                 </DragDropContext>
-            ) : loading ? (
-                <div className="text-center py-4">Загрузка...</div>
-            ) : (
+            ) : !loading ? (
                 <div className="text-center py-4">Нет элементов</div>
+            ) : null}
+
+            {loading && (
+                <div className="text-center py-4">Загрузка...</div>
             )}
-            <div ref={loaderRef} />
+
+            {hasMore && (
+                <div
+                    ref={loaderRef}
+                    className="h-10 w-full text-center"
+                >
+                    {/* Пустой загрузчик для триггера */}
+                </div>
+            )}
         </div>
     );
 };

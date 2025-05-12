@@ -104,6 +104,11 @@ const ItemList: React.FC = () => {
 
     // Обработчик DnD
     const onDragEnd = async (result: DropResult) => {
+        // Если активен поиск, вообще не обрабатываем перетаскивание
+        if (search) {
+            return;
+        }
+
         if (!result.destination) return;
 
         const reorderedItems = reorder(items, result.source.index, result.destination.index);
@@ -111,7 +116,7 @@ const ItemList: React.FC = () => {
 
         try {
             const draggedItemId = parseInt(result.draggableId);
-            const fullSearchResults = await fetchItems(search, 0, 5000, false);
+            const fullSearchResults = await fetchItems('', 0, 5000, false); // Пустой поиск для получения всех элементов
             const fullOrder = [...fullSearchResults];
             const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
 
@@ -121,8 +126,8 @@ const ItemList: React.FC = () => {
 
                 const customOrder = fullOrder.map(item => item.id);
 
-                // Передаем текущий поисковый запрос при сохранении порядка
-                await saveState(Array.from(selectedIds), customOrder, search);
+                // Передаем пустой поисковый запрос для сохранения глобального порядка
+                await saveState(Array.from(selectedIds), customOrder, '');
             }
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
@@ -164,31 +169,30 @@ const ItemList: React.FC = () => {
         }
     };
 
-    // Отображение списка элементов с перетаскиванием или без
-    const renderItemList = () => {
-        // Если активен поиск, отображаем обычный список без возможности перетаскивания
-        if (search) {
-            return (
-                <ul className="list-unstyled">
-                    {items.map((item) => (
-                        <li
-                            key={item.id.toString()}
-                            className="d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition"
-                        >
-                            <Form.Check
-                                type="checkbox"
-                                checked={selectedIds.has(item.id)}
-                                onChange={() => toggleSelect(item.id)}
-                                className="me-2"
-                            />
-                            <span className="text-dark">{item.value}</span>
-                        </li>
-                    ))}
-                </ul>
-            );
-        }
+    // Отображение обычного списка без перетаскивания
+    const renderStaticList = () => {
+        return (
+            <ul className="list-unstyled">
+                {items.map((item) => (
+                    <li
+                        key={item.id.toString()}
+                        className="d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition"
+                    >
+                        <Form.Check
+                            type="checkbox"
+                            checked={selectedIds.has(item.id)}
+                            onChange={() => toggleSelect(item.id)}
+                            className="me-2"
+                        />
+                        <span className="text-dark">{item.value}</span>
+                    </li>
+                ))}
+            </ul>
+        );
+    };
 
-        // Если поиск не активен, используем DragDropContext
+    // Отображение списка с возможностью перетаскивания
+    const renderDraggableList = () => {
         return (
             <DragDropContext onDragEnd={onDragEnd}>
                 <Droppable droppableId={`droppable-list-${items.length}`}>
@@ -245,7 +249,7 @@ const ItemList: React.FC = () => {
             </Form.Group>
 
             {items.length > 0 ? (
-                renderItemList()
+                search ? renderStaticList() : renderDraggableList()
             ) : loading ? (
                 <div className="text-center py-4">Загрузка...</div>
             ) : (

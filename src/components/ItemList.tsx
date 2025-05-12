@@ -104,11 +104,6 @@ const ItemList: React.FC = () => {
 
     // Обработчик DnD
     const onDragEnd = async (result: DropResult) => {
-        // Если активен поиск, полностью игнорируем событие перетаскивания
-        if (search) {
-            return;
-        }
-
         if (!result.destination) return;
 
         const reorderedItems = reorder(items, result.source.index, result.destination.index);
@@ -116,7 +111,7 @@ const ItemList: React.FC = () => {
 
         try {
             const draggedItemId = parseInt(result.draggableId);
-            const fullSearchResults = await fetchItems('', 0, 5000, false);
+            const fullSearchResults = await fetchItems(search, 0, 5000, false);
             const fullOrder = [...fullSearchResults];
             const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
 
@@ -126,7 +121,8 @@ const ItemList: React.FC = () => {
 
                 const customOrder = fullOrder.map(item => item.id);
 
-                await saveState(Array.from(selectedIds), customOrder, '');
+                // Передаем текущий поисковый запрос при сохранении порядка
+                await saveState(Array.from(selectedIds), customOrder, search);
             }
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
@@ -161,8 +157,8 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            // Не передаем поисковый запрос при сохранении выбранных элементов
-            await saveState(Array.from(updated), [], '');
+            // Передаем текущий поисковый запрос при сохранении выбранных элементов
+            await saveState(Array.from(updated), [], search);
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }

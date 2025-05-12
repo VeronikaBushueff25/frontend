@@ -18,22 +18,6 @@ const ItemList: React.FC = () => {
     const isInitialized = useRef(false);
     const canLoadMore = useRef(true);
 
-    // Загрузка состояния с сервера и начальных данных
-    useEffect(() => {
-        const initializeData = async () => {
-            try {
-                const state = await loadState();
-                setSelectedIds(new Set(state.selectedIds || []));
-                isInitialized.current = true;
-                await loadInitialItems();
-            } catch (err) {
-                console.error('Ошибка инициализации данных', err);
-            }
-        };
-
-        initializeData();
-    }, []);
-
     // Загрузка первоначальных элементов или при смене поиска
     const loadInitialItems = useCallback(async () => {
         // Сбрасываем состояние
@@ -64,6 +48,22 @@ const ItemList: React.FC = () => {
             setLoading(false);
         }
     }, [search]);
+
+    // Загрузка состояния с сервера и начальных данных
+    useEffect(() => {
+        const initializeData = async () => {
+            try {
+                const state = await loadState();
+                setSelectedIds(new Set(state.selectedIds || []));
+                isInitialized.current = true;
+                await loadInitialItems();
+            } catch (err) {
+                console.error('Ошибка инициализации данных', err);
+            }
+        };
+
+        initializeData();
+    }, [loadInitialItems]);
 
     // Загрузка дополнительных элементов
     const loadMoreItems = useCallback(async () => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { Form } from 'react-bootstrap';
-import {fetchItems, saveState, loadState} from '../api/api';
+import { fetchItems, saveState, loadState, saveOrderChange } from '../api/api';
 import { Item } from '../types/Item';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -15,40 +15,9 @@ const ItemList: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const loaderRef = useRef<HTMLDivElement | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [visibleItemIds, setVisibleItemIds] = useState<number[]>([]); // Только для видимых элементов
     const isFirstLoad = useRef(true);
     const isInitialized = useRef(false);
-
-    // Загрузка следующей порции элементов
-    const loadMore = useCallback(async (resetOffset = false) => {
-        setLoading(true);
-        const currentOffset = resetOffset ? 0 : offset;
-
-        try {
-            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
-
-            if (resetOffset) {
-                setItems(newItems);
-                setOffset(LIMIT);
-            } else {
-                setItems(prev => {
-                    const existingIds = new Set(prev.map(item => item.id));
-                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
-                    return [...prev, ...uniqueNewItems];
-                });
-                setOffset(prev => prev + LIMIT);
-            }
-
-            if (newItems.length < LIMIT) {
-                setHasMore(false);
-            } else {
-                setHasMore(true);
-            }
-        } catch (err) {
-            console.error('Ошибка загрузки данных', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [search, offset]);
 
     // Загрузка состояния с сервера и начальных данных
     useEffect(() => {
@@ -64,7 +33,7 @@ const ItemList: React.FC = () => {
         };
 
         initializeData();
-    }, [loadMore]);
+    }, []);
 
     // Загрузка элементов при изменении поиска
     useEffect(() => {
@@ -82,7 +51,42 @@ const ItemList: React.FC = () => {
         } else {
             isFirstLoad.current = false;
         }
-    }, [search, loadMore]);
+    }, [search]);
+
+    // Загрузка следующей порции элементов
+    const loadMore = useCallback(async (resetOffset = false) => {
+        setLoading(true);
+        const currentOffset = resetOffset ? 0 : offset;
+
+        try {
+            const newItems = await fetchItems(search, currentOffset, LIMIT, true);
+            const newItemIds = newItems.map(item => item.id);
+
+            if (resetOffset) {
+                setItems(newItems);
+                setVisibleItemIds(newItemIds);
+                setOffset(LIMIT);
+            } else {
+                setItems(prev => {
+                    const existingIds = new Set(prev.map(item => item.id));
+                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                    return [...prev, ...uniqueNewItems];
+                });
+                setVisibleItemIds(prevIds => [...prevIds, ...newItemIds]);
+                setOffset(prev => prev + LIMIT);
+            }
+
+            if (newItems.length < LIMIT) {
+                setHasMore(false);
+            } else {
+                setHasMore(true);
+            }
+        } catch (err) {
+            console.error('Ошибка загрузки данных', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [search, offset]);
 
     // Наблюдатель для скролла
     useEffect(() => {
@@ -104,11 +108,6 @@ const ItemList: React.FC = () => {
 
     // Обработчик DnD
     const onDragEnd = async (result: DropResult) => {
-        // Если активен поиск, вообще не обрабатываем перетаскивание
-        if (search) {
-            return;
-        }
-
         if (!result.destination) return;
 
         const reorderedItems = reorder(items, result.source.index, result.destination.index);
@@ -116,19 +115,16 @@ const ItemList: React.FC = () => {
 
         try {
             const draggedItemId = parseInt(result.draggableId);
-            const fullSearchResults = await fetchItems('', 0, 5000, false); // Пустой поиск для получения всех элементов
-            const fullOrder = [...fullSearchResults];
-            const draggedIndex = fullOrder.findIndex(item => item.id === draggedItemId);
 
-            if (draggedIndex !== -1) {
-                const [moved] = fullOrder.splice(draggedIndex, 1);
-                fullOrder.splice(result.destination.index, 0, moved);
+            await saveOrderChange(
+                draggedItemId,
+                result.source.index,
+                result.destination.index,
+                Array.from(selectedIds)
+            );
 
-                const customOrder = fullOrder.map(item => item.id);
-
-                // Передаем пустой поисковый запрос для сохранения глобального порядка
-                await saveState(Array.from(selectedIds), customOrder, '');
-            }
+            const newVisibleIds = reorderedItems.map(item => item.id);
+            setVisibleItemIds(newVisibleIds);
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
             await loadMore(true);
@@ -147,6 +143,7 @@ const ItemList: React.FC = () => {
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
         setItems([]);
+        setVisibleItemIds([]);
         setOffset(0);
         setHasMore(true);
     };
@@ -162,73 +159,10 @@ const ItemList: React.FC = () => {
         setSelectedIds(updated);
 
         try {
-            // Передаем текущий поисковый запрос при сохранении выбранных элементов
-            await saveState(Array.from(updated), [], search);
+            await saveState(Array.from(updated));
         } catch (err) {
             console.error('Ошибка сохранения выбранных элементов', err);
         }
-    };
-
-    // Отображение обычного списка без перетаскивания
-    const renderStaticList = () => {
-        return (
-            <ul className="list-unstyled">
-                {items.map((item) => (
-                    <li
-                        key={item.id.toString()}
-                        className="d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition"
-                    >
-                        <Form.Check
-                            type="checkbox"
-                            checked={selectedIds.has(item.id)}
-                            onChange={() => toggleSelect(item.id)}
-                            className="me-2"
-                        />
-                        <span className="text-dark">{item.value}</span>
-                    </li>
-                ))}
-            </ul>
-        );
-    };
-
-    // Отображение списка с возможностью перетаскивания
-    const renderDraggableList = () => {
-        return (
-            <DragDropContext onDragEnd={onDragEnd}>
-                <Droppable droppableId={`droppable-list-${items.length}`}>
-                    {(provided) => (
-                        <ul {...provided.droppableProps} ref={provided.innerRef} className="list-unstyled">
-                            {items.map((item, index) => (
-                                <Draggable
-                                    key={item.id.toString()}
-                                    draggableId={item.id.toString()}
-                                    index={index}
-                                >
-                                    {(provided, snapshot) => (
-                                        <li
-                                            ref={provided.innerRef}
-                                            {...provided.draggableProps}
-                                            {...provided.dragHandleProps}
-                                            className={`d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition
-                                            ${snapshot.isDragging ? 'bg-info bg-opacity-25 shadow-lg' : ''}`}
-                                        >
-                                            <Form.Check
-                                                type="checkbox"
-                                                checked={selectedIds.has(item.id)}
-                                                onChange={() => toggleSelect(item.id)}
-                                                className="me-2"
-                                            />
-                                            <span className="text-dark">{item.value}</span>
-                                        </li>
-                                    )}
-                                </Draggable>
-                            ))}
-                            {provided.placeholder}
-                        </ul>
-                    )}
-                </Droppable>
-            </DragDropContext>
-        );
     };
 
     return (
@@ -241,15 +175,43 @@ const ItemList: React.FC = () => {
                     onChange={handleSearch}
                     className="border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                {search && (
-                    <div className="text-danger mb-3 fw-bold">
-                        🔒 Перетаскивание отключено при активном поиске
-                    </div>
-                )}
             </Form.Group>
 
             {items.length > 0 ? (
-                search ? renderStaticList() : renderDraggableList()
+                <DragDropContext onDragEnd={onDragEnd}>
+                    <Droppable droppableId={`droppable-list-${items.length}`}>
+                        {(provided) => (
+                            <ul {...provided.droppableProps} ref={provided.innerRef} className="list-unstyled">
+                                {items.map((item, index) => (
+                                    <Draggable
+                                        key={item.id.toString()}
+                                        draggableId={item.id.toString()}
+                                        index={index}
+                                    >
+                                        {(provided, snapshot) => (
+                                            <li
+                                                ref={provided.innerRef}
+                                                {...provided.draggableProps}
+                                                {...provided.dragHandleProps}
+                                                className={`d-flex align-items-center gap-3 px-4 py-2 border rounded-lg bg-light shadow-sm mb-2 transition
+                                                ${snapshot.isDragging ? 'bg-info bg-opacity-25 shadow-lg' : ''}`}
+                                            >
+                                                <Form.Check
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(item.id)}
+                                                    onChange={() => toggleSelect(item.id)}
+                                                    className="me-2"
+                                                />
+                                                <span className="text-dark">{item.value}</span>
+                                            </li>
+                                        )}
+                                    </Draggable>
+                                ))}
+                                {provided.placeholder}
+                            </ul>
+                        )}
+                    </Droppable>
+                </DragDropContext>
             ) : loading ? (
                 <div className="text-center py-4">Загрузка...</div>
             ) : (

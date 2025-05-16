@@ -24,14 +24,19 @@ export const saveOrderChange = async (
     oldIndex: number,
     newIndex: number,
     selectedIds: number[] = [],
-    search: string = ''
+    search: string = '',
+    contextItems: {
+        prevItemId: number | null,
+        nextItemId: number | null
+    }
 ) => {
     await axios.post(`${API_URL}/items/save-state`, {
         selectedIds,
         orderChanges: {
             itemId,
             oldIndex,
-            newIndex
+            newIndex,
+            contextItems
         },
         search
     });

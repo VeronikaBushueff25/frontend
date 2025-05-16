@@ -138,12 +138,24 @@ const ItemList: React.FC = () => {
 
         try {
             const draggedItemId = parseInt(result.draggableId);
+            const destinationIndex = result.destination.index;
+
+            // Определяем соседние элементы для контекста
+            const prevItemId = destinationIndex > 0
+                ? reorderedItems[destinationIndex - 1].id
+                : null;
+
+            const nextItemId = destinationIndex < reorderedItems.length - 1
+                ? reorderedItems[destinationIndex + 1].id
+                : null;
 
             await saveOrderChange(
                 draggedItemId,
                 result.source.index,
                 result.destination.index,
-                Array.from(selectedIds)
+                Array.from(selectedIds),
+                search,
+                { prevItemId, nextItemId }
             );
         } catch (err) {
             console.error('Ошибка сохранения нового порядка', err);
